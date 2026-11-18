@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Toy Fairy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d24; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas {
+    width: min(100vw, calc(100vh * 1376 / 768));
+    height: min(100vh, calc(100vw * 768 / 1376));
+    image-rendering: pixelated;
+    background: #101436;
+    cursor: pointer;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game" width="1376" height="768"></canvas>
+<script src="js/game.js"></script>
+</body>
+</html>
