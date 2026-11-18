@@ -19,6 +19,7 @@ for (let n = 1; n <= 6; n++) FILES['bg' + n] = `assets/bg/Level${n}.jpg`;
  'fairy_hover0', 'fairy_hover1', 'fairy_hover2', 'fairy_cast0', 'fairy_cast1', 'fairy_laugh0', 'fairy_laugh1',
  'fairy_hit0', 'fairy_hit1', 'fairy_cele0', 'fairy_cele1', 'fairy_pick0', 'fairy_pick1']
   .forEach(k => FILES[k] = `assets/sprites/${k}.png`);
+FILES.qr = 'assets/qr.png';
 function loadAll() {
   return Promise.all(Object.entries(FILES).map(([k, src]) => new Promise(res => {
     const im = new Image(); im.onload = () => { IMG[k] = im; res(); }; im.onerror = res; im.src = src;
@@ -160,6 +161,7 @@ const LV = [null,
     fairy: { wait: 6, cast: 5, speed: 4.4 } },
 ];
 const LESSON = "Packing away your toys before you go to sleep keeps your treasures safe, happy, and ready for tomorrow's big adventure!";
+const WALLET = 'bc1qaem3wda6usdsflx8n45ysa84d7j77wm808faft';
 const MAXLOST = 3, CARRY = 3, SPEED = 5.4;
 
 // ---------------------------------------------------------------- state
@@ -345,12 +347,14 @@ function startLevel(n) { G.levelScore = G.score; build(n); G.state = 'intro'; G.
 function say(s, t = 2.4) { G.banner = s; G.bannerT = t; }
 function action() {
   if (AC && AC.state === 'suspended') AC.resume();
-  if (G.state === 'title') { G.score = 0; G.stars = []; startLevel(1); }
+  if (G.state === 'welcome') { if (G.t > 0.6) { G.state = 'title'; G.t = 0; } }
+  else if (G.state === 'thanks') { if (G.t > 1) { G.state = 'title'; G.t = 0; } }
+  else if (G.state === 'title') { G.score = 0; G.stars = []; startLevel(1); }
   else if (G.state === 'intro' && G.t > 0.4) { G.state = 'cine'; G.ct = 0; if (L.n === 5) SFX.flap(); }
   else if (G.state === 'cine' && L.n === 1 && !G.pulled) pullMoon();
   else if (G.state === 'won' && G.t > 1) { if (L.n < 5) startLevel(L.n + 1); else finish(); }
   else if (G.state === 'lost' && G.t > 1) { G.score = G.levelScore; startLevel(L.n); }
-  else if (G.state === 'end' && G.t > 2) { G.state = 'title'; G.t = 0; }
+  else if (G.state === 'end' && G.t > 2) { G.state = 'thanks'; G.t = 0; }
 }
 function pullMoon() { G.pulled = true; G.ct = 0; SFX.zip(); }
 function finish() {
@@ -396,7 +400,7 @@ function floatText(s, x, y, col = '#fff') { FX.push({ text: s, x, y, vx: 0, vy: 
 
 // ---------------------------------------------------------------- update
 function update(dt) {
-  G.t += dt; if (G.bannerT > 0) G.bannerT -= dt; if (G.shake > 0) G.shake -= dt;
+  G.t += dt; if (G.copied > 0) G.copied -= dt; if (G.bannerT > 0) G.bannerT -= dt; if (G.shake > 0) G.shake -= dt;
   for (const f of FX) { f.life -= dt; f.x += f.vx * dt; f.y += f.vy * dt; if (!f.text) f.vy += 120 * dt; }
   FX = FX.filter(f => f.life > 0);
   if (G.state === 'cine') updCine(dt);
@@ -947,12 +951,41 @@ function drawEnd() {
   const st = G.stars.reduce((a, b) => a + (b || 0), 0);
   text(`${G.newHi ? 'NEW HIGH SCORE' : 'SCORE'} ${G.score}    STARS ${st}/15    BEST ${G.hi}`, W / 2, 628, 13, '#9fe8ff', 'center');
   wrap(LESSON, 920, 12).forEach((l, k) => text(l, W / 2, 662 + k * 22, 12, CREAM, 'center'));
-  if (t > 2 && Math.floor(t * 2) % 2) text('PRESS SPACE TO PLAY AGAIN', W / 2, 734, 12, '#fff', 'center');
+  if (t > 2 && Math.floor(t * 2) % 2) text('PRESS SPACE TO CONTINUE', W / 2, 734, 12, '#fff', 'center');
 }
 
+function drawSupport() { // AdFreeGaming welcome / thank-you screen with the donation wallet
+  const end = G.state === 'thanks', t = G.t;
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(IMG[end ? 'bg6' : 'bg1'], 0, 0, W, H);
+  ctx.fillStyle = 'rgba(8,8,34,0.7)'; ctx.fillRect(0, 0, W, H);
+  const x = 138, y = 84, w = 1100, h = 600, cx = x + w / 2;
+  panel(x, y, w, h);
+  big3d('AdFreeGaming', cx, y + 70, 46, '#2f6fd0', '#16306a', 6);
+  text(end ? 'THANK YOU FOR PLAYING!' : 'THANK YOU FOR VISITING!', cx, y + 136, 20, '#b02a1c', 'center', null);
+  ctx.fillStyle = '#c9a85a'; ctx.fillRect(x + 60, y + 168, w - 120, 3);
+  const lines = end
+    ? ['You tidied the whole room with no ads,', 'no pop-ups and no sign-up.', '', 'If that matters to you, please consider', 'donating to my Bitcoin wallet.', 'Every little bit keeps the games ad-free!']
+    : ['The games here are free to play, with', 'no ads, no pop-ups and no sign-up.', '', 'If this matters to you, please consider', 'donating to my Bitcoin wallet.', 'Every little bit keeps the games ad-free!'];
+  lines.forEach((s, k) => text(s, x + 60, y + 216 + k * 32, 14, k > 2 ? '#5a3a1a' : INK, 'left', null));
+  // QR code on a white card
+  const q = 250, qx = x + w - q - 76, qy = y + 190;
+  ctx.fillStyle = INK; ctx.fillRect(qx - 14, qy - 14, q + 28, q + 28); ctx.fillStyle = '#fff'; ctx.fillRect(qx - 8, qy - 8, q + 16, q + 16);
+  if (IMG.qr) { ctx.imageSmoothingEnabled = true; ctx.drawImage(IMG.qr, qx, qy, q, q); ctx.imageSmoothingEnabled = false; }
+  text('SCAN TO DONATE', qx + q / 2, qy + q + 34, 12, '#b02a1c', 'center', null);
+  // wallet address
+  text('BITCOIN WALLET', cx, y + 466, 24, '#b02a1c', 'center', null);
+  ctx.fillStyle = INK; ctx.fillRect(cx - 420, y + 490, 840, 40); ctx.fillStyle = '#fff7dc'; ctx.fillRect(cx - 416, y + 494, 832, 32);
+  // plain monospace here: the pixel font makes look-alike characters hard to tell apart
+  ctx.font = 'bold 24px Consolas, "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = INK; ctx.fillText(WALLET, cx, y + 511);
+  text(G.copied > 0 ? 'ADDRESS COPIED!' : 'PRESS C TO COPY THE ADDRESS', cx, y + 548, 10, G.copied > 0 ? '#3c9a4c' : '#5a3a1a', 'center', null);
+  if (Math.floor(t * 2) % 2) text(end ? 'PRESS SPACE OR CLICK TO PLAY AGAIN' : 'PRESS SPACE OR CLICK TO PLAY', cx, y + h - 22, 14, '#b02a1c', 'center', null);
+  img(IMG[end ? 'boy_cheer' : 'fairy_big'], x + 40, y + 150 + Math.sin(t * 2.5) * 8, end ? 170 : 190);
+}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (G.state === 'load') { ctx.fillStyle = '#101436'; ctx.fillRect(0, 0, W, H); text('LOADING...', W / 2, H / 2, 20, '#fff', 'center'); return; }
+  if (G.state === 'welcome' || G.state === 'thanks') return drawSupport();
   if (G.state === 'title') return drawTitle();
   if (G.state === 'end') return drawEnd();
   drawWorld();
@@ -969,6 +1002,7 @@ addEventListener('keydown', e => {
   keys.add(e.code);
   if (e.code === 'Space' || e.code === 'Enter') action();
   if (e.code === 'KeyM') muted = !muted;
+  if (e.code === 'KeyC' && (G.state === 'welcome' || G.state === 'thanks') && navigator.clipboard) navigator.clipboard.writeText(WALLET).then(() => { G.copied = 2; }, () => {});
   if (e.code === 'KeyR' && L && G.state === 'play') { G.score = G.levelScore; startLevel(L.n); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -994,6 +1028,6 @@ function frame(ts) {
 }
 requestAnimationFrame(frame);
 const fontReady = document.fonts && document.fonts.load ? Promise.race([document.fonts.load('16px "Press Start 2P"'), new Promise(r => setTimeout(r, 2500))]).catch(() => {}) : Promise.resolve();
-Promise.all([loadAll(), fontReady]).then(() => { makeSprites(); G.state = 'title'; G.t = 0; });
+Promise.all([loadAll(), fontReady]).then(() => { makeSprites(); G.state = 'welcome'; G.t = 0; });
 window.__toyfairy = { G, startLevel, finish, get L() { return L; }, get P() { return P; }, get F() { return F; } }; // debug handle
 })();
