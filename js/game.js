@@ -228,12 +228,12 @@ function build(n) {
   };
   let reserved = [];
   if (n === 1) {
-    flat([[40, 660], [600, 660], [640, 590], [1340, 590], [1340, 748], [40, 748]]);
-    L.start = near(670, 660);
-    const c = near(1270, 665); c.solid = true;
+    flat([[40, 640], [600, 640], [640, 556], [1340, 556], [1340, 710], [40, 710]]);
+    L.start = near(670, 630);
+    const c = near(1270, 630); c.solid = true;
     L.chest = { i: c.i, j: c.j, drawn: true, range: 1.7 };
   } else if (n === 2) {
-    L.ox = 690; L.oy = 262; const N = 15;
+    L.ox = 690; L.oy = 224; const N = 15;
     for (let tries = 0; tries < 60; tries++) {
       L.tiles.clear();
       const open = new Set(), seen = new Set(['0,0']), stack = [[0, 0]];
@@ -266,7 +266,7 @@ function build(n) {
     L.yellow = { i: 0, j: 14, open: 0, done: false };
     L.enemies.push({ type: 'teddy', i: 14, j: 0, ti: 14, tj: 0, sleep: 2, face: 1 });
   } else if (n === 3) {
-    L.ox = 690; L.oy = 275; L.hs = 20; L.hscale = 0; const N = 13;
+    L.ox = 690; L.oy = 255; L.hs = 20; L.hscale = 0; const N = 13;
     const ramps = { '9,3': 1, '4,9': 1, '5,1': 3, '3,5': 3, '1,2': 5, '2,0': 5 };
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
       const d = Math.max(i, j);
@@ -281,23 +281,23 @@ function build(n) {
     L.tiles.get('0,0').solid = true;
     L.wheel = { i: 0, j: 0, spin: 0, used: false };
   } else if (n === 4) {
-    flat([[10, 530], [250, 500], [570, 500], [672, 470], [672, 615], [1030, 735], [1030, 760], [10, 760]]);
-    L.start = near(140, 640);
-    const c = near(610, 560);
+    flat([[10, 492], [250, 462], [570, 462], [672, 432], [672, 615], [990, 722], [10, 722]]);
+    L.start = near(140, 600);
+    const c = near(610, 530);
     L.pad = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]].map(([a, b]) => L.tiles.get(K(c.i + a, c.j + b))).filter(Boolean).slice(0, 4);
     L.chest = { i: c.i + 0.4, j: c.j + 0.4, drawn: false, range: 1.5, pad: true, tx: 965, ty: 440 };
-    const lv = near(330, 520); lv.solid = true;
+    const lv = near(330, 485); lv.solid = true;
     L.lever = { i: lv.i, j: lv.j, t: 0 };
     reserved = L.pad.slice();
-    [[90, 585, 3.6], [520, 668, -4.4], [260, 735, 4]].forEach(([x, y, s]) => {
+    [[90, 550, 3.6], [520, 630, -4.4], [260, 695, 4]].forEach(([x, y, s]) => {
       const t = near(x, y); L.enemies.push({ type: 'ball', i: t.i, j: t.j, s, roll: 0 });
     });
   } else if (n === 5) {
-    flat([[250, 492], [1085, 492], [1360, 600], [1360, 752], [16, 752], [16, 585]]);
-    L.start = near(250, 690);
-    const c = near(850, 512);
+    flat([[250, 460], [1085, 460], [1360, 565], [1360, 714], [16, 714], [16, 550]]);
+    L.start = near(250, 650);
+    const c = near(850, 482);
     L.chest = { i: c.i, j: c.j, drawn: false, range: 1.5, tx: 850, ty: 440 };
-    for (let k = 0; k < 3; k++) { const t = near(rnd(350, 1250), rnd(540, 730)); L.enemies.push({ type: 'dust', i: t.i, j: t.j, ti: t.i, tj: t.j, wait: rnd(0, 2) }); }
+    for (let k = 0; k < 3; k++) { const t = near(rnd(350, 1250), rnd(500, 690)); L.enemies.push({ type: 'dust', i: t.i, j: t.j, ti: t.i, tj: t.j, wait: rnd(0, 2) }); }
   }
   // toys on random reachable tiles
   const reach = [...bfs(L.start).values()].map(v => v.t);
@@ -461,7 +461,10 @@ function updPlay(dt) {
       else {
         const s = Math.min(d, SPEED * dt), oi = P.i, oj = P.j;
         P.moving = move(P, di / d * s, dj / d * s);
-        if (!P.moving) P.path = null;
+        if (!P.moving) { // bumped a corner: re-route from the middle of this square instead of giving up
+          P.retry = (P.retry || 0) + 1;
+          if (P.dest && P.retry <= 3) { const c = tileAt(P.i, P.j); P.path = [c, ...pathTo(c, P.dest)]; } else P.path = null;
+        }
         const sx = (P.i - oi) - (P.j - oj); if (Math.abs(sx) > 0.001) P.face = Math.sign(sx);
       }
     }
@@ -1010,13 +1013,28 @@ addEventListener('blur', () => keys.clear());
 cv.addEventListener('pointerdown', e => {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
   if (G.state !== 'play') return action();
-  let hit = null, bd = -1;
-  for (const t of L.tiles.values()) { // front-most tile whose top face contains the click
-    const [tx, ty] = scr(t.i, t.j, t.h);
-    if (Math.abs(x - tx) / HW + Math.abs(y - ty) / HH <= 1 && t.i + t.j > bd) { bd = t.i + t.j; hit = t; }
+  let hit = null, bd = 1e9;
+  // a tap on a toy's picture means that toy's square (the picture stands taller than its square)
+  for (const t of L.toys) if (t.state === 'floor') {
+    const tl = tileAt(t.i, t.j), [tx, ty] = scr(t.i, t.j, tl.h);
+    if (Math.abs(x - tx) < 40 && y > ty - 84 && y < ty + 22) { const d = Math.hypot(x - tx, y - (ty - 26)); if (d < bd) { bd = d; hit = tl; } }
+  }
+  if (!hit) { // ...and the same for the toy box and the lever
+    const [cx, cy] = chestTarget();
+    if (Math.hypot(x - cx, y - cy) < (L.chest.drawn ? 64 : 120)) hit = tileAt(L.chest.i, L.chest.j);
+    else if (L.lever) { const [lx, ly] = scr(L.lever.i, L.lever.j); if (Math.abs(x - lx) < 44 && y > ly - 80 && y < ly + 44) hit = tileAt(L.lever.i, L.lever.j); }
+  }
+  if (!hit) {
+    let top = -1;
+    for (const t of L.tiles.values()) { // front-most tile whose top face contains the click
+      const [tx, ty] = scr(t.i, t.j, t.h);
+      if (Math.abs(x - tx) / HW + Math.abs(y - ty) / HH <= 1 && t.i + t.j > top) { top = t.i + t.j; hit = t; }
+    }
   }
   if (!hit) hit = near(x, y);
-  P.path = pathTo(tileAt(P.i, P.j), hit);
+  if (!(hit === P.dest && P.path && P.path.length)) { // same square while already walking there: keep the current path
+    P.dest = hit; P.retry = 0; P.path = pathTo(tileAt(P.i, P.j), hit);
+  }
   FX.push({ text: 'x', x, y, vx: 0, vy: 0, life: .35, max: .35, col: CREAM });
 });
 
